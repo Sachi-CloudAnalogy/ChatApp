@@ -2,7 +2,7 @@ import socket
 import threading
 
 HOST = "127.0.0.1"
-PORT = 1234
+PORT = 8000
 LISTENER_LIMIT = 5
 active_clients = []  #list of all currently connected users
 
@@ -10,7 +10,8 @@ def listen_for_msg(client, username):
     while 1:
         message = client.recv(2048).decode("utf-8")
         if message != "":
-            final_msg = username + "->" + message
+            final_msg = username + ">" + message
+            print(final_msg)
             send_messages_to_all(final_msg)
         else:
             print(f"Message sent from client {username} is empty")    
@@ -29,6 +30,8 @@ def client_handler(client):
         username = client.recv(2048).decode("utf-8")
         if username != "":
             active_clients.append((username, client))
+            msg = "SERVER >" + f"{username} added to the chat"
+            send_messages_to_all(msg)
             break
         else:
             print("Client username is empty")
