@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import jwt
-from . import models
+from ChatApp import models
 
 SECRET_KEY = "secret"
 ALGORITHM = "HS256"

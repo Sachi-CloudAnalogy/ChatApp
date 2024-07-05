@@ -1,8 +1,13 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 import uvicorn
 
-app = FastAPI()
+from ChatApp import oauth2, models
+
+router = APIRouter(
+    prefix="/chat",
+    tags=['Chats']
+)
 
 html = """
 <!DOCTYPE html>
@@ -71,13 +76,14 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@app.get("/")
+@router.get("/")
 async def get():
     return HTMLResponse(html)
 
-@app.websocket("/ws/{username}")
-async def websocket_endpoint(websocket: WebSocket, username: str):
+@router.websocket("/ws/{username}")
+async def websocket_endpoint(websocket: WebSocket, username: str, current_user: models.Login = Depends(oauth2.get_current_user)):
     await manager.connect(websocket)
+    await manager.broadcast(f"{username} joined the chat")
     try:
         while True:
             data = await websocket.receive_text()
@@ -88,4 +94,4 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
         await manager.broadcast(f"{username} left the chat")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=7000)
+    uvicorn.run(router, host="127.0.0.1", port=8000)

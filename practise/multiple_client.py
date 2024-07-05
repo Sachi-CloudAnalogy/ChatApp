@@ -1,8 +1,15 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 import uvicorn
 
-app = FastAPI()
+from ChatApp.models import TokenData
+from ChatApp.tokens import create_access_token, verify_token
+
+router = APIRouter(
+    prefix="/chat",
+    tags=['Chats']
+)
 
 html = """
 <!DOCTYPE html>
@@ -70,12 +77,26 @@ class ConnectionManager:
             await connection.send_text(message)
 
 manager = ConnectionManager()
+templates = Jinja2Templates(directory="ChatApp/templates")
 
-@app.get("/")
+@router.get("/", response_class=HTMLResponse)
+async def get(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@router.post("/token")
+async def get_token(username: str = Form(...), password: str = Form(...)):
+    data = {"username": username, "password": password}
+    token = create_access_token(data)
+    if verify_token(token):
+        return {"access_token": token}
+    else:
+        return "Some error occured !!"
+
+@router.get("/html")
 async def get():
     return HTMLResponse(html)
 
-@app.websocket("/ws/{username}")
+@router.websocket("/ws/{username}")
 async def websocket_endpoint(websocket: WebSocket, username: str):
     await manager.connect(websocket)
     try:
@@ -87,5 +108,19 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
         manager.disconnect(websocket)
         await manager.broadcast(f"{username} left the chat")
 
+# @router.websocket("/ws/{username}")
+# async def websocket_endpoint(websocket: WebSocket, username: str, token: str = Depends(oauth2_scheme)):
+#     token_data: TokenData = verify_token(token)
+#     if not username:
+#         raise HTTPException(status_code=400, detail="Username is required")
+#     await manager.connect(websocket)
+#     try:
+#         while True:
+#             data = await websocket.receive_text()
+#             await manager.broadcast(f"{username} says: {data}")
+#     except WebSocketDisconnect:
+#         manager.disconnect(websocket)
+#         await manager.broadcast(f"{username} left the chat")
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=7000)
+    uvicorn.run(router, host="127.0.0.1", port=8000)

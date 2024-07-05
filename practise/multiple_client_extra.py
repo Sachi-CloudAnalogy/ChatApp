@@ -1,8 +1,16 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 import uvicorn
+# from ..oauth2 import oauth2_scheme
 
-app = FastAPI()
+from ChatApp.models import TokenData
+from ChatApp.tokens import verify_token
+
+router = APIRouter(
+    prefix="/chat",
+    tags=['Chats']
+)
 
 html = """
 <!DOCTYPE html>
@@ -71,21 +79,52 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@app.get("/")
-async def get():
-    return HTMLResponse(html)
+# @router.get("/")
+# async def get():
+#     return HTMLResponse(html)
 
-@app.websocket("/ws/{username}")
-async def websocket_endpoint(websocket: WebSocket, username: str):
+templates = Jinja2Templates(directory="ChatApp/templates")
+
+@router.get("/", response_class=HTMLResponse)
+async def get(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@router.post("/token")
+async def get_token(username: str = Form(...), password: str = Form(...)):
+    data = {"username": username, "password": password}
+    #return {"access_token": "dummy_token"}
+    return RedirectResponse(url="/login")
+
+# @app.websocket("/ws/{username}")
+# async def websocket_endpoint(websocket: WebSocket, username: str):
+#     await manager.connect(websocket)
+#     try:
+#         while True:
+#             data = await websocket.receive_text()
+#             # await manager.send_personal_message(f"You wrote: {data}", websocket)
+#             await manager.broadcast(f"{username} says: {data}")
+#     except WebSocketDisconnect:
+#         manager.disconnect(websocket)
+#         await manager.broadcast(f"{username} left the chat")
+
+@router.websocket("/ws/{username}")
+async def websocket_endpoint(websocket: WebSocket, username: str, token: str = Depends(oauth2_scheme)):
+    token_data: TokenData = verify_token(token)
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
     await manager.connect(websocket)
     try:
         while True:
             data = await websocket.receive_text()
-            # await manager.send_personal_message(f"You wrote: {data}", websocket)
-            await manager.broadcast(f"{username} says: {data}")
+            action = data.get("action")
+            if action == "post_message":
+                message = data.get("message")
+                if message:
+                    await manager.broadcast(f"{username} says: {data}")
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         await manager.broadcast(f"{username} left the chat")
 
+        
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=7000)
+    uvicorn.run(router, host="127.0.0.1", port=8000)
