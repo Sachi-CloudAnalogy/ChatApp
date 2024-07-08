@@ -20,6 +20,11 @@ def verify_token(token: str, credentials_exception):
         if email is None:
             raise credentials_exception
         token_data = models.TokenData(email=email)
+        return token_data.dict()
     except jwt.InvalidTokenError:
         raise credentials_exception
 
+def decode_data(token: str):
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        return email
